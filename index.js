@@ -3,6 +3,7 @@ const app = express()
 app.use(express.json())
 const cors = require('cors')
 app.use(cors())
+app.use(express.static('dist'))
 
 let notes = [
   {
@@ -28,10 +29,6 @@ const generateId = () => {
     : 0
   return String(maxId + 1)
 }
-
-app.get('/', (request, response) => {
-    response.send('<h1>Hello world!</h1>')
-})
 
 app.get('/api/notes', (request, response) => {
     response.json(notes)
@@ -63,7 +60,7 @@ app.post('/api/notes', (request, response) => {
                 error: 'content missing'
             }
         )
-    }
+    } 
 
     const note = {
         content: body.content,
@@ -76,6 +73,20 @@ app.post('/api/notes', (request, response) => {
     response.json(note)
 })
 
+app.put('/api/notes/:id', (req, res) => {
+  const id = req.params.id
+  //find index of wanted note
+  const idx = notes.map(note => note.id).indexOf(id)
+  if (idx == -1) { //no note with that index, return bad request
+    return res.status(400).send({error: "No note with such index."})
+  }
+  //get new object from request
+  const newNoteObj = req.body
+  //insert into array of notes
+  notes.splice(idx, 1, newNoteObj)
+  return res.send(newNoteObj)
+})
+
 const PORT = process.env.PORT || 3001
 app.listen(PORT)
-console.log(`Server running on port ${PORT}`)
+console.log(`Server running on port ${PORT}`) 
