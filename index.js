@@ -1,27 +1,11 @@
+require('dotenv').config()
 const express = require('express')
 const app = express()
 app.use(express.json())
 const cors = require('cors')
 app.use(cors())
 app.use(express.static('dist'))
-
-let notes = [
-  {
-    id: "1",
-    content: "HTML is easy",
-    important: true
-  },
-  {
-    id: "2",
-    content: "Browser can execute only JavaScript",
-    important: false
-  },
-  {
-    id: "3",
-    content: "GET and POST are the most important methods of HTTP protocol",
-    important: true
-  }
-]
+const Note = require('./models/note')
 
 const generateId = () => {
   const maxId = notes.length > 0
@@ -31,62 +15,85 @@ const generateId = () => {
 }
 
 app.get('/api/notes', (request, response) => {
-    response.json(notes)
+  Note.find({}).then(result => {
+    return response.json(result)
+  })
 })
 
-app.get('/api/notes/:id', (request, response) => {
+app.get('/api/notes/:id', (request, response, next) => {
     const id = request.params.id
-    const noteObj = notes.find( note => note.id === id )
-    if (noteObj) {
-        response.json(noteObj)
-    } else {
-        response.status(404).end()
-    }
+    Note.findById(id)
+      .then( note => {
+        if (note) {
+          return response.json(note)
+        } else {
+          return response.status(404).send({error: "No note with such ID"})
+        }
+      } )
+      .catch(error => next(error))
 })
+
 
 app.delete('/api/notes/:id', (request, response) => {
     const id = request.params.id
-    notes = notes.filter( note => note.id !== id )
-    response.status(204).end()
+    Note
+      .findByIdAndDelete(id)
+      .then(result => {
+        return response.status(204).end()
+      })
 })
 
-app.post('/api/notes', (request, response) => {
+app.post('/api/notes', (request, response, next) => {
     const body = request.body
     console.log(body)
 
-    if (!body.content) {
-        return response.status(400).json(
-            {
-                error: 'content missing'
-            }
-        )
-    } 
-
-    const note = {
+    const note = new Note({
         content: body.content,
-        important: body.important || false,
-        id: generateId()
-    }
+        important: body.important || false
+    })
 
-    notes = notes.concat(note)
-
-    response.json(note)
+    note.save()
+      .then(savedNote => {
+        response.json(savedNote)
+      })
+      .catch(err => next(err))
 })
 
 app.put('/api/notes/:id', (req, res) => {
   const id = req.params.id
-  //find index of wanted note
-  const idx = notes.map(note => note.id).indexOf(id)
-  if (idx == -1) { //no note with that index, return bad request
-    return res.status(400).send({error: "No note with such index."})
-  }
   //get new object from request
-  const newNoteObj = req.body
-  //insert into array of notes
-  notes.splice(idx, 1, newNoteObj)
-  return res.send(newNoteObj)
+  const body = req.body
+  //update note obj in db
+  Note
+    .findByIdAndUpdate(id, body)
+    .then(result => {
+      return res.status(204).end()
+    })
+    .catch(err => {
+      console.log(err)
+      return res.status(400).send({error: "no note with such id to update"})
+    }) 
 })
 
-const PORT = process.env.PORT || 3001
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({error: 'unknown endpoint'})
+}
+
+app.use(unknownEndpoint)
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+  if (error.name === 'CastError') {
+    return response.status(400).send({error: 'ID of wrong format'})
+  } else if (error.name === 'ValidationError') {
+    return response.status(400).json({error: error.message})
+  }
+  next(error)
+}
+
+app.use(errorHandler)
+
+
+const PORT = process.env.PORT
 app.listen(PORT)
 console.log(`Server running on port ${PORT}`) 

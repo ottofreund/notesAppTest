@@ -1,0 +1,7 @@
+PUT http://localhost:3001/api/notes/687384cfbd7a81fe90f0d3df
+Content-Type: application/json
+
+{
+    "content": "HTML is ez pz lemon squeezy",
+    "cat": true
+}
